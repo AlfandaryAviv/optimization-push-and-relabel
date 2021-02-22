@@ -1,15 +1,17 @@
 import pickle
-
+import os
 import networkx as nx
-from networkx.algorithms.flow import preflow_push
+from networkx.algorithms.flow import preflow_push, edmonds_karp, shortest_augmenting_path
 # import csv
 # import operator
 # import random
 # import numpy as np
 
 def push_and_relabel():
+
     # file_path = "./data/road-euroroad_with_weight_2_py.csv"
     file_path = "./data/road-euroroad_with_weight_updated_edges.csv"
+
     datalines = open(file_path, 'r').readlines() #[2:]
     datalines = [row.replace('\n', '').split(',') for row in datalines]
 
@@ -19,7 +21,6 @@ def push_and_relabel():
     int_dst = list(map(int, dst))
     int_weight = list(map(int, weight))
 
-    # random.seed(0)
     # nodes = set(list(src) + list(dst))
     # nodes = sorted(list(nodes))
 
@@ -30,13 +31,27 @@ def push_and_relabel():
         g.add_edge(n1, n2, capacity=w, load=0)
 
     solve_max_flow(g, 7, 10)
-    # print(g)
 
-    # check algorithm res:
-    R = preflow_push(g, 7, 10)
-    flow_value = nx.maximum_flow_value(g, 7, 10)
-    print("flow from nx algo: ",flow_value)
-
+    ################################################################################
+    # ########### ***********comapare algorithm results to others:******************
+    #
+    # # comapre to nx Preflow-Push  #todo: check if its the same as push and relabel
+    # R = preflow_push(g, 7, 10)
+    # flow_value = nx.maximum_flow_value(g, 7, 10)
+    # print("flow from nx maxflow algo: ",flow_value)
+    #
+    # # admonds_karp
+    # R_admonds_karp = edmonds_karp(g, 7, 10)
+    # flow_value_admonds_karp = nx.maximum_flow_value(g, 7, 10)
+    # print("flow from nx algo: ",flow_value_admonds_karp)
+    #
+    # # shortest_augmenting_path
+    # R_shortest_augmenting_path = shortest_augmenting_path(g, 7, 10)
+    # flow_value_shortest_augmenting_path = nx.maximum_flow_value(g, 7, 10)
+    # print("flow from nx algo: ",flow_value_shortest_augmenting_path)
+    #
+    # ##### more nx implementation are here: https://networkx.org/documentation/stable//reference/algorithms/flow.html?highlight=flow#module-networkx.algorithms.flow
+    #################################################################################
 
     ''' 
     # find the longest path and the edges (path: 67, src:634, dst: 828)
@@ -87,6 +102,7 @@ def push_and_relabel():
 
     # solve_max_flow(g,634,828)
 
+    # random.seed(0)
     # sampled_indices = random.sample([i for i in range(g.number_of_nodes())], 2)
     # print(sampled_indices)
     # solve_max_flow(g,sampled_indices[0],sampled_indices[1])
