@@ -46,10 +46,9 @@ def push_and_relabel():
     mapping[100], mapping[1] = mapping[1], mapping[100]
     g = nx.relabel_nodes(g, mapping)
 
-    writer = csv.writer
-    out_file = open(f"./data/for_gephi_small_{g.number_of_nodes()}_nodes_{g.number_of_edges()}_edges.csv", 'w')
+    out_file = open(f"./data/small_{g.number_of_nodes()}_nodes_{g.number_of_edges()}_edges_with_weights.csv", 'w')
     for e in g.edges():
-        new_row = [str(e[0]), str(e[1])]
+        new_row = [str(e[0]), str(e[1]), str(g.edges()[e]['capacity'])]
         r = ','.join(new_row)
         out_file.write(r + '\n')
     out_file.close()
