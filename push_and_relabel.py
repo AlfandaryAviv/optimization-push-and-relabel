@@ -1,18 +1,18 @@
 import pickle
 import os
 import networkx as nx
-from networkx.algorithms.flow import preflow_push, edmonds_karp, shortest_augmenting_path
-# import csv
+import math
+import csv
 # import operator
 # import random
 # import numpy as np
 
 def push_and_relabel():
-
     # file_path = "./data/road-euroroad_with_weight_2_py.csv"
     file_path = "./data/road-euroroad_with_weight_updated_edges.csv"
+    # file_path = "./data/road-euroroad_with_weight_original.csv"
 
-    datalines = open(file_path, 'r').readlines() #[2:]
+    datalines = open(file_path, 'r').readlines()
     datalines = [row.replace('\n', '').split(',') for row in datalines]
 
     src, dst, weight = zip(*datalines)
@@ -21,37 +21,84 @@ def push_and_relabel():
     int_dst = list(map(int, dst))
     int_weight = list(map(int, weight))
 
-    # nodes = set(list(src) + list(dst))
-    # nodes = sorted(list(nodes))
-
     g = nx.DiGraph()
     for n1, n2, w in zip(int_src, int_dst, int_weight):
-        g.add_node(n1, overrun=0, dist=0)
-        g.add_node(n2, overrun=0, dist=0)
-        g.add_edge(n1, n2, capacity=w, load=0)
 
-    solve_max_flow(g, 7, 10)
+        # Initialize height and excess flow of every vertex as 0.
+        g.add_node(n1, excess=0, height=0)
+        g.add_node(n2, excess=0, height=0)
 
-    ################################################################################
-    # ########### ***********comapare algorithm results to others:******************
-    #
-    # # comapre to nx Preflow-Push  #todo: check if its the same as push and relabel
-    # R = preflow_push(g, 7, 10)
-    # flow_value = nx.maximum_flow_value(g, 7, 10)
-    # print("flow from nx maxflow algo: ",flow_value)
-    #
-    # # admonds_karp
-    # R_admonds_karp = edmonds_karp(g, 7, 10)
-    # flow_value_admonds_karp = nx.maximum_flow_value(g, 7, 10)
-    # print("flow from nx algo: ",flow_value_admonds_karp)
-    #
-    # # shortest_augmenting_path
-    # R_shortest_augmenting_path = shortest_augmenting_path(g, 7, 10)
-    # flow_value_shortest_augmenting_path = nx.maximum_flow_value(g, 7, 10)
-    # print("flow from nx algo: ",flow_value_shortest_augmenting_path)
-    #
-    # ##### more nx implementation are here: https://networkx.org/documentation/stable//reference/algorithms/flow.html?highlight=flow#module-networkx.algorithms.flow
-    #################################################################################
+        # Initialize flow of every edge as 0 and capacity to w.
+        g.add_edge(n1, n2, capacity=w, flow=0)
+
+    # remove vertices which are not accessible from vertex 100
+    length = dict(nx.all_pairs_shortest_path_length(g))
+    new_nodes = set(k for k in length[100])
+
+    for n in list(g.nodes()):
+        if n not in new_nodes:
+            g.remove_node(n)
+
+    print(f"num nodes: {g.number_of_nodes()}, num edges: {g.number_of_edges()}")
+
+    # create new indexes for the nodes (setting our original source(100) to be idx 1)
+    mapping = {n: i + 1 for i, n in enumerate(g.nodes())}
+    mapping[100], mapping[1] = mapping[1], mapping[100]
+    g = nx.relabel_nodes(g, mapping)
+
+    writer = csv.writer
+    out_file = open(f"./data/for_gephi_small_{g.number_of_nodes()}_nodes_{g.number_of_edges()}_edges.csv", 'w')
+    for e in g.edges():
+        new_row = [str(e[0]), str(e[1])]
+        r = ','.join(new_row)
+        out_file.write(r + '\n')
+    out_file.close()
+
+
+    #####################################################
+    ## if we want to use 499 as target with 504 index
+    # inverse_mapping = {v: k for k,v in mapping.items()}
+    # mapping[499], mapping[inverse_mapping[504]] = mapping[inverse_mapping[504]], mapping[499]
+    # g = nx.relabel_nodes(g, mapping)
+    ####################################################
+
+    source, target = 1, 100
+    print(f"starting push and relabel max flow with source: {source}, target: {target}")
+    solve_push_and_relabel(g, source, target)
+
+    '''
+    # p = nx.shortest_path(g)
+    # length = dict(nx.all_pairs_shortest_path_length(g))
+
+    # ######## find network with a size > 500
+    # maxi=0
+    # for i in range(1,len(length)+1):
+    #     try:
+    #         max_value = len(length[i])
+    #         # if max_value > maxi:
+    #         if max_value > 500:
+    #             maxi = max_value
+    #             print(maxi, i)
+    #     except:
+    #         e=0
+
+    # ### finds longest path from each node
+    # maxi = 0
+    # for i in length:
+    #     max_value = max(length[i].values())  # maximum value
+    #     if max_value > maxi:
+    #         maxi = max_value
+    #         max_keys = [k for k, v in length[i].items() if v == max_value]
+    #         print(maxi, i, max_keys)
+
+    ### find nodes with in deg higher than 3
+    # for node in g.nodes():
+    #     if g.in_degree(node)>3:
+    #         print(f"node: {node}, in_degree:{g.in_degree(node)}, out_dergree: {g.out_degree(node)}")
+    '''
+
+
+
 
     ''' 
     # find the longest path and the edges (path: 67, src:634, dst: 828)
@@ -100,121 +147,109 @@ def push_and_relabel():
         out_file.write(row_with_weight+'\n')
     '''
 
-    # solve_max_flow(g,634,828)
-
-    # random.seed(0)
-    # sampled_indices = random.sample([i for i in range(g.number_of_nodes())], 2)
-    # print(sampled_indices)
-    # solve_max_flow(g,sampled_indices[0],sampled_indices[1])
-
-def get_active_node(graph, source_node, target_node):
-    for node in graph.nodes():
-        if not node is target_node and not node is source_node and graph.nodes()[node]["overrun"] > 0:
-            return node
-    return None
-
-def has_active_node(graph, s, t):
-    return True if not get_active_node(graph, s, t) is None else False
 
 def push(graph, node):
-    '''
-    Push a load from the given node if possible.
-    If a neighbor node which is closer the target node can accept more load - push.
-    Else, if no such node is found push fails therefore a relabel is executed.
-    '''
-    success = False
+    """
+    flow from a node which has excess flow. If a node has excess flow and there is an adjacent with smaller height in
+    the residual graph, push the flow from the node to the adjacent with lower height.
+    """
+    push_accomplished = False
     for edge in graph.out_edges(node):
-        neighbor = edge[1]
-        if not graph.nodes()[node]["dist"] == graph.nodes()[neighbor]["dist"] + 1 or graph.edges()[edge]["load"] == graph.edges()[edge]["capacity"]:
-            continue
-        success = True
-        reverse_edge = (edge[1], edge[0])
+        adjacent = edge[1]
+        if graph.edges()[edge]["capacity"] - graph.edges()[edge]["flow"] > 0 and \
+                graph.nodes()[node]["height"] > graph.nodes()[adjacent]["height"]:
 
-        push = min(graph.edges()[edge]["capacity"] - graph.edges()[edge]["load"], graph.nodes()[node]["overrun"])
-        graph.edges()[edge]["load"] += push
-        graph.edges()[reverse_edge]["load"] -= push
-        graph.nodes()[neighbor]["overrun"] += push
-        graph.nodes()[node]["overrun"] -= push
+            push_accomplished = True
+            reverse_edge = (edge[1], edge[0])
 
-        print(f"pushing {push} from {node} to {neighbor}")
-        if graph.nodes()[node]["overrun"] == 0:
-            break
+            push_flow = min(graph.nodes()[node]["excess"],
+                            graph.edges()[edge]["capacity"] - graph.edges()[edge]["flow"])
+            graph.edges()[edge]["flow"] += push_flow
+            graph.edges()[reverse_edge]["flow"] -= push_flow
+            graph.nodes()[adjacent]["excess"] += push_flow
+            graph.nodes()[node]["excess"] -= push_flow
 
-    return success
+            print(f"push {push_flow} from {node} to {adjacent}")
+            if graph.nodes()[node]["excess"] == 0:
+                break
+    return push_accomplished
+
 
 def relabel(graph, node):
     """
-    Relabel a node.
-    Finds smallest dist in order to make a push possible.
-    Adjusts the dist value of the current node to the minimun dist value of its neighbors plus one.
+    Used to make a push() possible.
+    Increases the height of the node with excess flow that none of its adjacent has lower height.
+    To increase height, we pick the minimum height adjacent and add +1 to it.
     """
-    min_dist = None
+    min_height = math.inf
 
     for edge in graph.out_edges(node):
-        if graph.edges()[edge]["load"] == graph.edges()[edge]["capacity"]:
+        if graph.edges()[edge]["flow"] - graph.edges()[edge]["capacity"] == 0:
             continue
-        if min_dist is None or graph.nodes()[edge[1]]["dist"] < min_dist:
-            min_dist = graph.nodes()[edge[1]]["dist"]
+        if graph.nodes()[edge[1]]["height"] < min_height:
+            min_height = graph.nodes()[edge[1]]["height"]
+        graph.nodes()[node]["height"] = min_height + 1
 
-        graph.nodes()[node]["dist"] = min_dist + 1
+    print(f">> Relabel {node} to height {graph.nodes()[node]['height']}")
 
-def solve_max_flow(graph, source_node, target_node):
-    '''
-    Solves the max flow prolem using the push-relabel algorithm for the given
-    graph and source/target node.
-    :param graph: a networkx undirected graph
-    :param source_node: int, the source node
-    :param target_node: int, the target node
-    '''
+
+def solve_push_and_relabel(graph, source_node, target_node):
+    """
+    Run push-relabel max flow algorithm for the given graph with source and target node.
+    :param graph: Networkx undirected graph (Digraph)
+    :param source_node: Source node (int)
+    :param target_node: Target node (int)
+    """
+
+    # Initialize height of source vertex equal to total number of vertices in graph.
     s = graph.nodes()[source_node]
+    s["height"] = len(graph.nodes())
 
-    for n in graph.nodes():
-        graph.nodes()[n]["dist"] = 0
-        graph.nodes()[n]["overrun"] = 0
-
+    # Create temp edges
     for e in graph.edges():
-        graph.edges()[e]["load"] = 0
-    # adding the return edges
-    # for e in graph.edges():
-
         if not graph.has_edge(e[1], e[0]):
-            graph.add_edge(e[1], e[0], capacity=0, load=0, tmp=True)
+            graph.add_edge(e[1], e[0], capacity=0, flow=0, tmp=True)
 
-    # initialize source node
-    s["dist"] = len(graph.nodes())
-
-    # populate edges going out of the source node
+    # Initialize edges from source node
     for e in graph.out_edges(source_node):
-        graph.edges()[e]["load"] = graph.edges()[e]["capacity"]
-        graph.nodes()[e[1]]["overrun"] = graph.edges()[e]["load"]
-        graph.edges()[(e[1], e[0])]["load"] = -graph.edges()[e]["capacity"]
+        graph.edges()[e]["flow"] = graph.edges()[e]["capacity"]
+        graph.nodes()[e[1]]["excess"] = graph.edges()[e]["flow"]
+        graph.edges()[(e[1], e[0])]["flow"] = -graph.edges()[e]["capacity"]
 
-    # solve the max flow problem
-    while has_active_node(graph, source_node, target_node):
-        node = get_active_node(graph, source_node, target_node)
-        if not push(graph, node):
+    # run push and relabel
+    while True:
+        node = None
+        for n in graph.nodes():
+            if n != target_node and n != source_node and graph.nodes()[n]["excess"] > 0:
+                node = n
+                break
+        if node is None:
+            break
+        succeed_push = push(graph, node)
+        if not succeed_push:
             relabel(graph, node)
-            print("** relabeling %s to dist %i" % (str(node), graph.nodes()[node]["dist"]))
 
     path = "./pkl"
     if not os.path.exists(path):
         os.makedirs(path)
 
-    # save graph
-    pickle.dump(graph, open(f"./pkl/graph_{str(source_node)}_{str(target_node)}_{str(graph.number_of_nodes())}_{str(graph.number_of_edges())}.pkl","wb"))
+    # Save graph
+    pickle.dump(graph, open(f"{path}/graph_{str(source_node)}_{str(target_node)}_{str(graph.number_of_nodes())}_"
+                            f"{str(graph.number_of_edges())}.pkl", "wb"))
 
-    # cleanup
+    # Remove temp edges
     for edge in graph.edges():
         if hasattr(edge, "tmp"):
             graph.remove_edge(edge)
 
-    # save graph after removing edge
-    pickle.dump(graph, open(f"./pkl/graph_{str(source_node)}_{str(target_node)}_{str(graph.number_of_nodes())}_{str(graph.number_of_edges())}.pkl","wb"))
+    # Save graph after removing tmp edges
+    pickle.dump(graph, open(f"{path}/graph_{str(source_node)}_{str(target_node)}_{str(graph.number_of_nodes())}_"
+                            f"{str(graph.number_of_edges())}.pkl", "wb"))
 
-    # total flow from source:
+    # Total flow from source
     print(f"total flow from source: {graph.nodes()[source_node]}")
 
-    # total flow to target:
+    # Total flow to target
     print(f"total flow to target: {graph.nodes()[target_node]}")
 
 
